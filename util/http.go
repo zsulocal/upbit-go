@@ -1,16 +1,22 @@
 package util
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"github.com/zsulocal/upbit-go/types"
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 )
 
 type RequestOptions struct {
 	Url     string
 	Method  string
-	Body    io.Reader
+	Body    map[string]string
+	Json    map[string]string
 	Query   map[string]string
 	Headers map[string]string
 }
@@ -19,8 +25,21 @@ func Request(options *RequestOptions, result interface{}) (
 	err error,
 ) {
 	client := &http.Client{}
+	var rawbody io.Reader
+	if options.Body != nil {
+		body := url.Values{}
+		for k, v := range options.Body {
+			body.Set(k, v)
+		}
+		rawbody = strings.NewReader(body.Encode())
+	}
 
-	req, err := http.NewRequest(options.Method, options.Url, options.Body)
+	if options.Json != nil {
+		body, _ := json.Marshal(options.Json)
+		rawbody = bytes.NewReader(body)
+	}
+
+	req, err := http.NewRequest(options.Method, options.Url, rawbody)
 	if err != nil {
 		return
 	}
@@ -53,6 +72,14 @@ func Request(options *RequestOptions, result interface{}) (
 	}
 
 	err = json.Unmarshal(Body, result)
+	var upbitErr types.ResponseError
+	if err != nil {
+		err = json.Unmarshal(Body, &upbitErr)
+		if err == nil {
+			err = errors.New(upbitErr.Err.Message)
+			return
+		}
+	}
 	if err != nil {
 		return
 	}

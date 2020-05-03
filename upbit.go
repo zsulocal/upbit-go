@@ -1,17 +1,19 @@
 package upbit
 
 import (
+	"crypto/sha512"
+	"encoding/hex"
 	"net/url"
 	"strconv"
 
 	"github.com/dgrijalva/jwt-go"
 
-	"github.com/hannut91/upbit-go/types"
-	"github.com/hannut91/upbit-go/util"
+	"github.com/zsulocal/upbit-go/types"
+	"github.com/zsulocal/upbit-go/util"
 )
 
 const (
-	baseUrl = "https://api.upbit.com/v1"
+	baseUrl = "https://id-api.upbit.com/v1"
 )
 
 type InvalidParams struct {
@@ -44,8 +46,11 @@ func (client *Client) Token(query map[string]string) (tokenStr string, err error
 		}
 
 		rawQuery := q.Encode()
+		sha_512 := sha512.New()
+		sha_512.Write([]byte(rawQuery))
 
-		claim["query"] = rawQuery
+		claim["query_hash"] = hex.EncodeToString(sha_512.Sum(nil))
+		claim["query_hash_alg"] = "SHA512"
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claim)
@@ -318,7 +323,7 @@ func (client *Client) Order(
 		Headers: map[string]string{
 			"Authorization": "Bearer " + token,
 		},
-		Query: query,
+		Body: query,
 	}
 
 	err = util.Request(options, &order)
@@ -345,6 +350,7 @@ func (client *Client) CancelOrder(
 			"Content-Type":  "application/json; charset=utf-8",
 		},
 		Query: query,
+		Json:  query,
 	}
 
 	err = util.Request(options, &order)
